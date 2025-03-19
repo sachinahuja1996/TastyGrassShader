@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53c6f3549c8e81942aa2bab0d74f75a7, type: 3}
+  m_Name: Tgs_FlowersDandelionBloom
+  m_EditorClassIdentifier: 
+  density: 25
+  angleLimit: 83.7
+  growDirection: {x: 0, y: 1, z: 0}
+  growDirectionBySurfaceNormal: 0
+  minimalHeight: 0.06
+  clumpCount: 50
+  clumpPercentage: 1
+  clumpLimitNoiseVariation: 0
+  stemGenerate: 1
+  stemColor: {r: 0.11903508, g: 0.16981131, b: 0.04004981, a: 1}
+  stemThicknessRatio: 0.18
+  noiseTexture0: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  noiseLayer0:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+    tiling: 500
+    valueScale: 1
+    valueOffset: 0.83
+    height: {x: 0.12, y: 0.12}
+    offset: {x: 0.3, y: 0.5}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0.5, y: 0.5}
+    skew: {x: 1, y: 1}
+    colorInfluence: {x: 1, y: 1}
+    color: {r: 1, g: 0.9477987, b: 0.73899364, a: 1}
+  noiseTexture1: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer1:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 1.72
+    valueScale: 1
+    valueOffset: 0.83
+    height: {x: -1.0970321, y: 0.113319635}
+    offset: {x: 0.34124702, y: 0.7860275}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0.015827797}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -0.4245013, y: -0.4245013}
+    color: {r: 1, g: 1, b: 1, a: 1}
+  noiseTexture2: {fileID: 11700000, guid: 1cd37825aae0a1840a5b7e7d72fbc2cb, type: 3}
+  noiseLayer2:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: 1cd37825aae0a1840a5b7e7d72fbc2cb, type: 3}
+    tiling: 1.78
+    valueScale: 51.6
+    valueOffset: -2.3
+    height: {x: 0, y: 0}
+    offset: {x: 0, y: 0}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -1, y: 1}
+    color: {r: 1, g: 0.9402022, b: 0.05345905, a: 1}
+  noiseTexture3: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer3:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 3.2
+    valueScale: 43.64
+    valueOffset: -7.8
+    height: {x: 0.012662195, y: 0.012662195}
+    offset: {x: 0, y: 0}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -1, y: 1}
+    color: {r: 1, g: 0.87805045, b: 0, a: 1}
+  twirl: 0.1
+  flatten: -0.67
+  scruffiness: 0
+  limpness: 0
+  texture: {fileID: 2800000, guid: 5c8207797a86d1043b5ddbcee66635aa, type: 3}
+  textureUvLayout: 0
+  proceduralShapeBlend: 0
+  upperArc: 0
+  lowerArc: 4
+  tipRounding: 0.0725
+  windIntensityScale: 2
+  windPivotOffset: -1
+  smoothness: 0.017
+  occlusionByHeight: 0
+  colliderInfluence: 0.618
+  baseLodFactor: 1
+  castShadows: 1

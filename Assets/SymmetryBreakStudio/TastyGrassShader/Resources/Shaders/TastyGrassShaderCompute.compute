@@ -1,0 +1,651 @@
+﻿// The GPU core of the Tasty Grass Shader.
+#pragma kernel MeshPass
+#pragma kernel TerrainPass
+
+#pragma kernel BakePass
+
+#pragma kernel DrawToDensityMap
+#pragma kernel FillToDensityMap
+
+#include "../../Shaders/TastyGrassShaderCommon.hlsl"
+
+// Structs 
+// =================================================================================================================
+struct IndirectDrawArgs
+{
+    uint verticesPerInstance;
+    uint instances;
+    uint startVertexIndex;
+    uint startInstancingIndex;
+};
+
+struct NoiseUserParams
+{
+    int disable;
+    float tiling;
+    float contrast;
+    float bias;
+    float2 heightMinMax;
+    float2 heightOffsetMinMax;
+    float2 widthMinMax;
+    float2 thicknessMinMax;
+    float2 thicknessApexMinMax;
+    float2 colorInfluenceMinMax;
+    float4 color;
+};
+
+struct BladeGeneratorResult
+{
+    GrassNodeReference blade;
+    bool generatedBlade;
+};
+
+// Describes a triangle on which grass is supposed to be spawned on.
+struct PlacementTriangle
+{
+    // In world space from the original mesh.
+    float3 positions[3];
+    // In world space from the original mesh.
+    float3 normals[3];
+    // How much % of the density to spawn grass blades. Usually from vertex color or terrain texture mask.
+    float density[3];
+
+    float3 geometric_normal; // Computed from the positions alone. 
+    uint originalIndex; // used later as a consistent random hash.
+    float totalBladeAmount; // total amount of spawned blades. 
+};
+
+struct MetaData
+{
+    uint estMaxBlades;
+    uint placementTrianglesCount;
+    uint3 boundsMin, boundsMax;
+};
+
+struct UnityMeshVertexUNorm8
+{
+    float3 position;
+    float3 normal;
+    float4 tangent;
+    uint colorUnorm8;
+    float2 TexCoord0;
+    float2 TexCoord1;
+};
+
+// Shared Buffers
+// =================================================================================================================
+
+AppendStructuredBuffer<PlacementTriangle> _PlacementTrianglesAppend;
+StructuredBuffer<PlacementTriangle> _PlacementTrianglesR;
+
+StructuredBuffer<NoiseUserParams> _NoiseParams;
+#ifdef TGS_USE_REFERENCE_NODE_FORMAT
+AppendStructuredBuffer<GrassNodeReference> _GrassFieldPrimitivesAppend;
+#else
+AppendStructuredBuffer<GrassNodeCompressed> _GrassFieldPrimitivesAppend;
+#endif
+
+
+//TODO: Can this be an issues on Metal 1.0, due to lack of support for globallycoherent?
+globallycoherent RWStructuredBuffer<MetaData> _MetaDataRW;
+
+StructuredBuffer<UnityMeshVertexUNorm8> _MeshUnorm;
+
+uint _PlacementTriangleCount;
+uint _UsedPlacementTriangleCount;
+
+// Input data for placement mesh.
+// =================================================================================================================
+
+// NOTE/Unity-BUG: cant use Buffer<> because they get weirdly emulated in Vulkan and cause issues,
+// since only the first byte is read. 
+StructuredBuffer<float3> _PlacementVertices;
+StructuredBuffer<float3> _PlacementNormals;
+StructuredBuffer<float4> _PlacementColors;
+
+StructuredBuffer<uint> _PlacementIndices;
+
+// Input data for heightmap.
+// =================================================================================================================
+SamplerState _linear_clamp_sampler;
+Texture2D _Heightmap;
+Texture2D _DensityMap;
+
+float4 _DensityMapUvFromHeightmapIdx;
+
+
+float2 _HeightmapResolutionXy; // Resolution of the entire heightmap.
+float4 _HeightmapChunkOffsetSize; // Offset of the current chunk.
+
+// Common data
+// =================================================================================================================
+float4x4 _ObjectToWorld;
+
+int _DensityUseChannelMask;
+float4 _DensityMapChannelMask;
+
+SamplerState _linear_repeat_sampler;
+Texture3D _NoiseTexture0, _NoiseTexture1, _NoiseTexture2, _NoiseTexture3;
+
+float _Density;
+int _ClumpCount;
+float _ClumpLimitVariation;
+float _BladeScaleThreshold;
+float _Scruffiness;
+float _BladeLimpness;
+float _GrowDirectionBySurfaceNormal;
+float _GrowSlopeLimit;
+float _TwirlStrength, _PostVerticalScale;
+float _ClumpPercentage;
+float3 _GrowDirection;
+// The bounds of the object. If baking a terrain chunk, this is also the bounds of the terrain chunk.
+// float3 _PositionBoundMin, _PositionBoundMax; // these are defined in TastyGrassShaderLibrary
+
+int _StemGenerate;
+float3 _StemColor;
+float _StemThickness;
+
+// Helper functions
+// =================================================================================================================
+
+// Describes a single individual grass blade.
+struct BladeParams
+{
+    float height, heightOffset, width, thickness, thicknessApex;
+    float4 color;
+};
+
+// Applies a noise layer to the grass blade.
+void ApplyNoise(float3 noisePos, NoiseUserParams noiseParams, Texture3D noiseTexture, inout BladeParams bladeParams)
+{
+    if (noiseParams.disable)
+    {
+        return;
+    }
+    float noise = noiseTexture.SampleLevel(_linear_repeat_sampler, noisePos.xzy * noiseParams.tiling * 0.001, 0).r;
+    noise = saturate(noise * noiseParams.contrast + noiseParams.bias);
+    bladeParams.height += max(0.0, lerp(noiseParams.heightMinMax.x, noiseParams.heightMinMax.y, noise));
+    bladeParams.heightOffset += max(
+        0.0, lerp(noiseParams.heightOffsetMinMax.x, noiseParams.heightOffsetMinMax.y, noise));
+    bladeParams.width += max(0.0, lerp(noiseParams.widthMinMax.x, noiseParams.widthMinMax.y, noise));
+    bladeParams.thickness += lerp(noiseParams.thicknessMinMax.x, noiseParams.thicknessMinMax.y, noise);
+    bladeParams.thicknessApex += lerp(noiseParams.thicknessApexMinMax.x, noiseParams.thicknessApexMinMax.y, noise);
+
+    const float colorBlend = saturate(lerp(noiseParams.colorInfluenceMinMax.x, noiseParams.colorInfluenceMinMax.y,
+                                           noise));
+    bladeParams.color = lerp(bladeParams.color, noiseParams.color, colorBlend);
+}
+
+void PlacementTrianglePostProcessAndMayAppend(PlacementTriangle placementTriangle)
+{
+    if (dot(_GrowDirection, placementTriangle.normals[0]) < _GrowSlopeLimit)
+        placementTriangle.density[0] = 0.0;
+
+    if (dot(_GrowDirection, placementTriangle.normals[1]) < _GrowSlopeLimit)
+        placementTriangle.density[1] = 0.0;
+
+    if (dot(_GrowDirection, placementTriangle.normals[2]) < _GrowSlopeLimit)
+        placementTriangle.density[2] = 0.0;
+
+
+    if (placementTriangle.density[0] <= 0.0 && placementTriangle.density[1] <= 0.0 && placementTriangle.density[2] <=
+        0.0)
+    {
+        // don't care about 0 density triangles
+        return;
+    }
+
+    // Prevent very small triangles from spamming huge amount of blades.
+    // This also evens out the distribution of blades across small triangles.
+    placementTriangle.totalBladeAmount += RndHash11(placementTriangle.originalIndex) * 2.0 - 1.0;
+    if (placementTriangle.totalBladeAmount <= 0.0)
+    {
+        return;
+    }
+
+    // Limit the peak density to prevent GPU driver crashes in case there is a misconfiguration.
+    placementTriangle.totalBladeAmount = min(placementTriangle.totalBladeAmount, MAX_BLADES_PER_TRIANGLE);
+
+    InterlockedAdd(_MetaDataRW[0].estMaxBlades, ceil(placementTriangle.totalBladeAmount));
+
+    // Compute instance Tight-AABB.
+    const float EncodingRange32bit = 4294967294.0; // == (1 << 32) - 1
+    {
+        const float3 aabbMin = min(placementTriangle.positions[0],
+                                   min(placementTriangle.positions[1], placementTriangle.positions[2]));
+        const float3 aabbMin01 = saturate(InverseLerp(_PositionBoundMin, _PositionBoundMax, aabbMin));
+        const uint3 aabbMinUint = uint3(aabbMin01 * EncodingRange32bit);
+
+        InterlockedMin(_MetaDataRW[0].boundsMin.x, aabbMinUint.x);
+        InterlockedMin(_MetaDataRW[0].boundsMin.y, aabbMinUint.y);
+        InterlockedMin(_MetaDataRW[0].boundsMin.z, aabbMinUint.z);
+    }
+    {
+        const float3 aabbMax = max(placementTriangle.positions[0],
+                                   max(placementTriangle.positions[1], placementTriangle.positions[2]));
+        const float3 aabbMax01 = saturate(InverseLerp(_PositionBoundMin, _PositionBoundMax, aabbMax));
+        const uint3 aabbMaxUint = uint3(aabbMax01 * EncodingRange32bit);
+
+        InterlockedMax(_MetaDataRW[0].boundsMax.x, aabbMaxUint.x);
+        InterlockedMax(_MetaDataRW[0].boundsMax.y, aabbMaxUint.y);
+        InterlockedMax(_MetaDataRW[0].boundsMax.z, aabbMaxUint.z);
+    }
+
+    _PlacementTrianglesAppend.Append(placementTriangle);
+    InterlockedAdd(_MetaDataRW[0].placementTrianglesCount, 1);
+}
+
+// ------------------------------------------------------------------------------
+// Terrain placement
+// ------------------------------------------------------------------------------
+
+// Sample from the heightmap and return the position in world space.
+float3 GetTerrainPositionWs(int2 positionPx, int2 chunkSize, int2 chunkOffset)
+{
+    int2 heightmapMax = 0;
+    _Heightmap.GetDimensions(heightmapMax.x, heightmapMax.y);
+    // Fixed borders on terrain edges
+    const int2 mirroredPosition = clamp(positionPx, 0, heightmapMax - 1);
+    const float4 heightmapSample = _Heightmap.Load(int3(mirroredPosition, 0));
+    const float heightmapY = UnpackHeightmap(heightmapSample) * 2.0;
+    const float2 heightmapPosXy01_relativeToChunk = (mirroredPosition - chunkOffset) / float2(chunkSize);
+
+    const float3 heightmapPos01 = float3(heightmapPosXy01_relativeToChunk.x,
+                                         heightmapY,
+                                         heightmapPosXy01_relativeToChunk.y);
+
+    const float3 outPosition = lerp(_PositionBoundMin, _PositionBoundMax, heightmapPos01);
+    return outPosition;
+}
+
+// Compute the normal for the given point at the heightmap.
+float3 GetTerrainNormal(int2 positionPx, int2 chunkSize, int2 chunkOffset)
+{
+    float3 up = GetTerrainPositionWs(positionPx + int2(0, 1), chunkSize, chunkOffset);
+    float3 right = GetTerrainPositionWs(positionPx + int2(1, 0), chunkSize, chunkOffset);
+    float3 down = GetTerrainPositionWs(positionPx + int2(0, -1), chunkSize, chunkOffset);
+    float3 left = GetTerrainPositionWs(positionPx + int2(-1, 0), chunkSize, chunkOffset);
+
+    // Reconstruct the Y axis, given that the normal is always 1.0 in length.
+    float2 normalXY;
+    normalXY.x = (left.y - right.y) / (right.x - left.x);
+    normalXY.y = (down.y - up.y) / (up.z - down.z);
+
+    float normalY = sqrt(1 - saturate(dot(normalXY, normalXY)));
+    return float3(normalXY.x, normalY, normalXY.y);
+}
+
+
+Texture2D _ColorMap;
+float _ColorMapBlend;
+float4 _ColorMapST;
+
+
+// ------------------------------------------------------------------------------
+// Mesh kernel
+// ------------------------------------------------------------------------------
+[numthreads(64,1,1)]
+void MeshPass(uint3 id : SV_DispatchThreadID)
+{
+    const uint triIndex = id.x;
+    if (triIndex >= _PlacementTriangleCount)
+    {
+        return;
+    }
+
+    // calculate placement triangle area
+    // --------------------------------------------------------------------------
+    PlacementTriangle pt;
+    {
+        uint triangle_index = id.x;
+        uint triIndex3 = triangle_index * 3;
+
+        // Load placement vertices and compute the placement triangle.
+        // --------------------------------------------------------------------------
+        PlacementTriangle tri;
+        const uint vtx0 = _PlacementIndices[triIndex3 + 0];
+        const uint vtx1 = _PlacementIndices[triIndex3 + 1];
+        const uint vtx2 = _PlacementIndices[triIndex3 + 2];
+
+        tri.positions[0] = mul(_ObjectToWorld, float4(_PlacementVertices[vtx0], 1.0)).xyz;
+        tri.positions[1] = mul(_ObjectToWorld, float4(_PlacementVertices[vtx1], 1.0)).xyz;
+        tri.positions[2] = mul(_ObjectToWorld, float4(_PlacementVertices[vtx2], 1.0)).xyz;
+
+        // normalizing fixes weirdly thin blades, if the source mesh has weird normals.
+        tri.normals[0] = SafeNormalize(mul(_ObjectToWorld, float4(_PlacementNormals[vtx0], 0.0)).xyz);
+        tri.normals[1] = SafeNormalize(mul(_ObjectToWorld, float4(_PlacementNormals[vtx1], 0.0)).xyz);
+        tri.normals[2] = SafeNormalize(mul(_ObjectToWorld, float4(_PlacementNormals[vtx2], 0.0)).xyz);
+
+        if (_DensityUseChannelMask)
+        {
+            tri.density[0] = dot(_PlacementColors[vtx0], _DensityMapChannelMask);
+            tri.density[1] = dot(_PlacementColors[vtx1], _DensityMapChannelMask);
+            tri.density[2] = dot(_PlacementColors[vtx2], _DensityMapChannelMask);
+        }
+        else
+        {
+            tri.density[0] = tri.density[1] = tri.density[2] = 1.0;
+        }
+
+
+        const float3 tangentWsNotNormalized = (tri.positions[1] - tri.positions[0]);
+        const float3 normalWsNotNormalized = cross(tangentWsNotNormalized, tri.positions[0] - tri.positions[2]);
+        const float3 normalWS = SafeNormalize(normalWsNotNormalized);
+        const float3 bitangentWS = normalize(cross(tangentWsNotNormalized, normalWS));
+
+        tri.geometric_normal = normalWS;
+        const float triangleArea = abs(dot(normalWsNotNormalized, normalWsNotNormalized)) * 0.5f;
+
+        tri.density[0] = saturate(tri.density[0]);
+        tri.density[1] = saturate(tri.density[1]);
+        tri.density[2] = saturate(tri.density[2]);
+        tri.originalIndex = triangle_index;
+        tri.totalBladeAmount = triangleArea * _Density;
+        pt = tri;
+    }
+    PlacementTrianglePostProcessAndMayAppend(pt);
+}
+
+[numthreads(64,1,1)]
+void TerrainPass(
+    uint groupId : SV_GroupID,
+    uint threadIndex : SV_GroupIndex,
+    uint3 dispatchId : SV_DispatchThreadID)
+{
+    const uint triangleId = dispatchId.x;
+    if (triangleId >= _PlacementTriangleCount)
+    {
+        return;
+    }
+
+    PlacementTriangle pt;
+    {
+        uint index = triangleId / 2;
+        bool evenTriangle = triangleId % 2 == 0;
+        const int2 chunkSize = _HeightmapChunkOffsetSize.zw;
+        const int2 heightmapIdx = _HeightmapChunkOffsetSize.xy + int2(index % chunkSize.x, index / chunkSize.x);
+        PlacementTriangle tri = (PlacementTriangle)0;
+
+        int2 baseCoord0 = heightmapIdx, baseCoord1 = heightmapIdx, baseCoord2 = heightmapIdx;
+
+        if (evenTriangle)
+        {
+            baseCoord0 += int2(0, 0);
+            baseCoord1 += int2(0, 1);
+            baseCoord2 += int2(1, 1);
+        }
+        else
+        {
+            baseCoord0 += int2(0, 0);
+            baseCoord1 += int2(1, 1);
+            baseCoord2 += int2(1, 0);
+        }
+
+        //TODO: could use GatherRed instead for less texture lookups
+        // Compute world space vertices.
+        tri.positions[0].xyz = GetTerrainPositionWs(baseCoord0, _HeightmapChunkOffsetSize.zw,
+                                                    _HeightmapChunkOffsetSize.xy);
+        tri.positions[1].xyz = GetTerrainPositionWs(baseCoord1, _HeightmapChunkOffsetSize.zw,
+                                                    _HeightmapChunkOffsetSize.xy);
+        tri.positions[2].xyz = GetTerrainPositionWs(baseCoord2, _HeightmapChunkOffsetSize.zw,
+                                                    _HeightmapChunkOffsetSize.xy);
+
+        // Compute world space normals.
+        tri.normals[0].xyz = GetTerrainNormal(baseCoord0, _HeightmapChunkOffsetSize.zw,
+                                              _HeightmapChunkOffsetSize.xy);
+        tri.normals[1].xyz = GetTerrainNormal(baseCoord1, _HeightmapChunkOffsetSize.zw,
+                                              _HeightmapChunkOffsetSize.xy);
+        tri.normals[2].xyz = GetTerrainNormal(baseCoord2, _HeightmapChunkOffsetSize.zw,
+                                              _HeightmapChunkOffsetSize.xy);
+
+        // Always use the density mask to reduce branching.
+        tri.density[0] = dot(
+            _DensityMap.SampleLevel(_linear_repeat_sampler,
+                                    float2(baseCoord0) * _DensityMapUvFromHeightmapIdx.xy +
+                                    _DensityMapUvFromHeightmapIdx.zw, 0),
+            _DensityMapChannelMask);
+        tri.density[1] = dot(
+            _DensityMap.SampleLevel(_linear_repeat_sampler,
+                                    float2(baseCoord1) * _DensityMapUvFromHeightmapIdx.xy +
+                                    _DensityMapUvFromHeightmapIdx.zw, 0),
+            _DensityMapChannelMask);
+        tri.density[2] = dot(
+            _DensityMap.SampleLevel(_linear_repeat_sampler,
+                                    float2(baseCoord2) * _DensityMapUvFromHeightmapIdx.xy +
+                                    _DensityMapUvFromHeightmapIdx.zw, 0),
+            _DensityMapChannelMask);
+
+        const float3 tangentWS = SafeNormalize(tri.positions[1] - tri.positions[0]);
+
+        const float3 tangentWsNotNormalized = tri.positions[1] - tri.positions[0];
+        const float3 normalWsNotNormalized = cross(tangentWsNotNormalized, tri.positions[0] - tri.positions[2]);
+        const float3 normalWS = SafeNormalize(normalWsNotNormalized);
+        const float3 bitangentWS = normalize(cross(tangentWsNotNormalized, normalWS));
+
+        tri.geometric_normal = normalWS;
+        const float triangleArea = dot(normalWsNotNormalized, normalWsNotNormalized) * 0.5f;
+
+        tri.density[0] = saturate(tri.density[0]);
+        tri.density[1] = saturate(tri.density[1]);
+        tri.density[2] = saturate(tri.density[2]);
+        tri.originalIndex = index * 2 + (evenTriangle ? 1 : 0);
+
+        tri.totalBladeAmount = triangleArea * _Density;
+        pt = tri;
+    }
+
+    PlacementTrianglePostProcessAndMayAppend(pt);
+}
+
+// ------------------------------------------------------------------------------
+//  Blade Generator
+// ------------------------------------------------------------------------------
+#define InterpolateAttribute(coord, attributeName) (coord.x * attributeName[0] + coord.y * attributeName[1] + coord.z * attributeName[2])
+BladeGeneratorResult GenerateBladeOrStem(PlacementTriangle tri, uint bladeIndex, uint triangleIndex)
+{
+    // Compute blade root position.
+    // =============================================================================================================
+    const float2 bladeRngWithClump = RndHash22(float2(triangleIndex, bladeIndex / _ClumpCount));
+    const float3 bladeBarycentricClumped = Rnd2ToBarycentric(bladeRngWithClump);
+    float3 bladeRootPosWithClump = InterpolateAttribute(bladeBarycentricClumped, tri.positions);
+
+    const float2 bladeRngWithoutClump = RndHash22(float2(triangleIndex, bladeIndex));
+    const float3 bladeBarycentricWithoutClump = Rnd2ToBarycentric(bladeRngWithoutClump);
+    float3 bladeRootPosWsNoClump = InterpolateAttribute(bladeBarycentricWithoutClump, tri.positions);
+
+    float3 bladeRootPosWS = lerp(bladeRootPosWsNoClump, bladeRootPosWithClump, _ClumpPercentage);
+
+    const float3 bladeRootNormalWS = normalize(InterpolateAttribute(bladeBarycentricClumped, tri.normals));
+    const float densityFromGeo = InterpolateAttribute(bladeBarycentricClumped, tri.density);
+    const float3 normal = normalize(bladeRootNormalWS + (RndHash33(bladeRootPosWS + 17.0) * 2.0 - 1.0) * _Scruffiness);
+
+    const float4 blade_rng = RndHash43(bladeRootPosWS + bladeIndex);
+
+    BladeGeneratorResult result = (BladeGeneratorResult)0;
+    if (blade_rng.w <= densityFromGeo)
+    {
+        BladeParams blade = (BladeParams)0;
+
+        float3 noiseSamplePos = lerp(bladeRootPosWsNoClump, bladeRootPosWithClump, _ClumpLimitVariation);
+        ApplyNoise(noiseSamplePos, _NoiseParams[0], _NoiseTexture0, /*inout*/ blade);
+        ApplyNoise(noiseSamplePos, _NoiseParams[1], _NoiseTexture1, /*inout*/ blade);
+        ApplyNoise(noiseSamplePos, _NoiseParams[2], _NoiseTexture2, /*inout*/ blade);
+        ApplyNoise(noiseSamplePos, _NoiseParams[3], _NoiseTexture3, /*inout*/ blade);
+
+        blade.height *= densityFromGeo;
+
+        if (blade.height > _BladeScaleThreshold)
+        {
+            const float3 bladeRootPosWsNoOffset = bladeRootPosWS;
+            // Compute the position of the tip and side vertex.
+            // =============================================================================================================
+            const float3 upDirection = _GrowDirection;
+            const float3 growDirection = SafeNormalize(lerp(upDirection, normal, _GrowDirectionBySurfaceNormal));
+
+            // Apply the height offset.
+            bladeRootPosWS += growDirection * blade.heightOffset;
+
+            // Note that all of the values are calculated in object space of the blade = relative to the center.
+            // This allows for some nice mathematical shortcuts.
+            const float4 blade_rng_n11 = blade_rng * 2.0 - 1.0;
+            const float3 tipEndPointGround = blade_rng_n11.xyz - dot(blade_rng_n11.xyz, growDirection) * growDirection;
+            //Project the random point on ground
+
+            const float3 bladeTipGround = tipEndPointGround * blade.width; // position of tip, projected on ground.
+
+            const float3 bladeTipUp = bladeTipGround + growDirection * blade.height; // position of tip, up in the air.
+            const float3 bladeCenter = bladeTipUp * blade.thicknessApex; // relative position between root and tip up
+
+            const float3 twirlDirection = SafeNormalize(cross(growDirection, tipEndPointGround));
+            float3 bladeSide = lerp(bladeCenter, bladeTipGround, blade.thickness) + twirlDirection * _TwirlStrength;
+
+            bladeSide = lerp(bladeSide, ProjectToNormal(growDirection, bladeSide), _PostVerticalScale);
+            float3 bladeTip = lerp(bladeTipUp, bladeTipGround, _BladeLimpness);
+            bladeTip = lerp(bladeTip, ProjectToNormal(growDirection, bladeTip), _PostVerticalScale);
+
+            //  const float3 flow = normalize(cross(upDirection, tipEndPointGround));
+            // Pack the blade primitive.
+            // =============================================================================================================
+            result.generatedBlade = true;
+
+            if (_StemGenerate && (bladeIndex % _ClumpCount == 0))
+            {
+                // Note that the stem is generated upside down, so that the wind pivot is correct after applying the wind pivot offset.
+                GrassNodeReference node;
+                node.root = bladeRootPosWS;
+                node.side = bladeRootPosWS + bladeSide * _StemThickness;
+                node.tip = bladeRootPosWsNoOffset - bladeSide * _StemThickness;
+                node.color = _StemColor.rgb;
+                node.normal = normal;
+
+                result.blade = node;
+            }
+            else
+            {
+                const float4 colorMap = _ColorMap.SampleLevel(_linear_repeat_sampler,
+                                                              bladeRootPosWS.xz * _ColorMapST.xy + _ColorMapST.zw, 0);
+                blade.color = lerp(blade.color, colorMap, _ColorMapBlend);
+
+                GrassNodeReference node;
+
+                node.root = bladeRootPosWS;
+                node.side = bladeRootPosWS + bladeSide;
+                node.tip = bladeRootPosWS + bladeTip;
+                node.normal = normal;
+                node.color = blade.color.rgb;
+                result.blade = node;
+            }
+        }
+    }
+
+    return result;
+}
+
+
+// ------------------------------------------------------------------------------
+// Unified Bake-Pass 
+// ------------------------------------------------------------------------------
+int _PlacementTriangleOffset;
+
+[numthreads(64,1,1)]
+void BakePass(
+    uint groupId : SV_GroupID,
+    uint threadIndexInGroup : SV_GroupIndex,
+    uint3 dispatchId : SV_DispatchThreadID)
+{
+    const uint threadCount = 64;
+
+    // Instead of processing one triangle per group, process a lot of triangles at the same time.
+    // While bad for performance, it reduces the need for an additional order randomizing pass
+    // (because blades are added in a quasi-random order, making the LOD system look pleasing),
+    // which makes it a net gain.
+
+    const uint baseIndex = _PlacementTriangleOffset + dispatchId.x;
+    const uint placementTriangleIndex = baseIndex % _UsedPlacementTriangleCount;
+    const uint placementTriangleBaseId = baseIndex / _UsedPlacementTriangleCount;
+    const PlacementTriangle tri = _PlacementTrianglesR[placementTriangleIndex];
+
+    const uint totalAmountCeil = ceil(tri.totalBladeAmount);
+    const uint bladeSpawnCountPerThreadMax =
+        CeilingDivision(totalAmountCeil, threadCount);
+
+    for (uint threadBladeIndex = 0; threadBladeIndex < bladeSpawnCountPerThreadMax; threadBladeIndex++)
+    {
+        const uint triangleBladeIndex = placementTriangleBaseId * bladeSpawnCountPerThreadMax + threadBladeIndex;
+        if (triangleBladeIndex >= totalAmountCeil)
+        {
+            // TODO: this is still bad for performance, because it leads to trailing wave occupancy.
+            break;
+        }
+
+        BladeGeneratorResult result = GenerateBladeOrStem(tri, triangleBladeIndex, tri.originalIndex);
+        if (result.generatedBlade)
+        {
+            #ifdef TGS_USE_REFERENCE_NODE_FORMAT
+            _GrassFieldPrimitivesAppend.Append(result.blade);
+            #else
+            const GrassNodeCompressed nodeCompressed = GrassNodeCompress(
+                result.blade, _PositionBoundMin, _PositionBoundMax);
+            _GrassFieldPrimitivesAppend.Append(nodeCompressed);
+            #endif
+        }
+    }
+}
+
+RWTexture2D<unorm float /* == R8UNorm*/> _DensityMapRW;
+uint _DensityMap_DimensionX;
+uint _DensityMap_DimensionY;
+
+// ------------------------------------------------------------------------------
+// Brush Drawing
+// ------------------------------------------------------------------------------
+
+float4 _PaintBrush; //xy coord | radius | intensity
+
+float2 _PaintNoise;
+
+[numthreads(8,8,1)]
+void DrawToDensityMap(
+    uint3 dispatchId : SV_DispatchThreadID)
+{
+    const uint2 brushBoundsStart = _PaintBrush.xy - _PaintBrush.zz;
+    const uint2 pixelCoord = dispatchId.xy + brushBoundsStart;
+
+    if (pixelCoord.x >= _DensityMap_DimensionX || pixelCoord.y >= _DensityMap_DimensionY)
+    {
+        // Don't draw out-of-bounds.
+        return;
+    }
+
+    const float attenuation = saturate(_PaintBrush.z - distance(_PaintBrush.xy, pixelCoord));
+    const float noise = lerp(1.0, abs(snoise(float3(pixelCoord.xy, 0.0) * _PaintNoise.xxx) * 2.0), _PaintNoise.y);
+    const float finalNoiseValue = noise * attenuation * _PaintBrush.w;
+    _DensityMapRW[pixelCoord] = saturate(_DensityMapRW[pixelCoord] + finalNoiseValue);
+}
+
+// ------------------------------------------------------------------------------
+// Filling
+// ------------------------------------------------------------------------------
+Texture2D<float4> _FillMap;
+float4 _Fill_ChannelWeights;
+int _Fill_Additive;
+
+[numthreads(8,8,1)]
+void FillToDensityMap(uint3 dispatchId : SV_DispatchThreadID)
+{
+    uint2 pxIndex = dispatchId.xy;
+    if (pxIndex.x >= _DensityMap_DimensionX || pxIndex.y >= _DensityMap_DimensionY)
+    {
+        return;
+    }
+
+    const float2 uv = pxIndex / float2(_DensityMap_DimensionX, _DensityMap_DimensionY);
+    const float density = dot(_Fill_ChannelWeights, _FillMap.SampleLevel(_linear_clamp_sampler, uv, 0));
+
+    const float newValueReplace = saturate(density);
+
+    const float srcValue = _DensityMapRW[pxIndex];
+    const float newValueBlend = saturate(srcValue + density);
+
+    _DensityMapRW[pxIndex] = lerp(newValueReplace, newValueBlend, _Fill_Additive);
+}

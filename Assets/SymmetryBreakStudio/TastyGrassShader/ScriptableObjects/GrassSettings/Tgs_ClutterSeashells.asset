@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53c6f3549c8e81942aa2bab0d74f75a7, type: 3}
+  m_Name: Tgs_ClutterSeashells
+  m_EditorClassIdentifier: 
+  density: 11.7
+  angleLimit: 85
+  growDirection: {x: 0, y: 1, z: 0}
+  growDirectionBySurfaceNormal: 1
+  minimalHeight: 0
+  clumpCount: 1
+  clumpPercentage: 0.9
+  clumpLimitNoiseVariation: 0
+  stemGenerate: 0
+  stemColor: {r: 0.396, g: 0.506, b: 0.133, a: 1}
+  stemThicknessRatio: 0.01
+  noiseTexture0: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer0:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: 90af59ad5b1f0c44fbcda0faa044104d, type: 3}
+    tiling: 5
+    valueScale: 1.3
+    valueOffset: 0.6
+    height: {x: 0.31658435, y: 0.31658435}
+    offset: {x: 0.01, y: 0.01}
+    angle: {x: 0.1, y: 0.2}
+    thickness: {x: 0.4, y: 0.5}
+    skew: {x: 0.0144435465, y: 0.08879594}
+    colorInfluence: {x: 0.12308094, y: 1}
+    color: {r: 1, g: 0.9512578, b: 0.9025157, a: 1}
+  noiseTexture1: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer1:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 13.43
+    valueScale: 1
+    valueOffset: 5.35
+    height: {x: -0.03319797, y: 0.1472809}
+    offset: {x: -0.013295058, y: 0.015200391}
+    angle: {x: -0.012242604, y: 0.17648487}
+    thickness: {x: -0.0067712218, y: 0.18499693}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -1, y: -1}
+    color: {r: 0.5921569, g: 0.5411765, b: 0.49803925, a: 1}
+  noiseTexture2: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  noiseLayer2:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+    tiling: 4.5
+    valueScale: 1
+    valueOffset: 0
+    height: {x: -0.38865745, y: -0.38865745}
+    offset: {x: -1.3094246, y: -1.3094246}
+    angle: {x: -0.8081736, y: -0.8081736}
+    thickness: {x: -0.2206005, y: -0.2206005}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -0.56130105, y: -0.56130105}
+    color: {r: 1, g: 1, b: 1, a: 1}
+  noiseTexture3: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer3:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 1
+    valueScale: 1
+    valueOffset: 0
+    height: {x: 0, y: 0}
+    offset: {x: 0, y: 0}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: 0, y: 0}
+    color: {r: 1, g: 1, b: 1, a: 1}
+  twirl: 0.216
+  flatten: 0
+  scruffiness: 0
+  limpness: 1
+  texture: {fileID: 2800000, guid: 6449288d5dba1e2478557cd145517cd1, type: 3}
+  textureUvLayout: 0
+  proceduralShapeBlend: 0
+  upperArc: 1.02
+  lowerArc: 4
+  tipRounding: 0.0168
+  windIntensityScale: 0
+  windPivotOffset: 0
+  smoothness: 0.263
+  occlusionByHeight: 0
+  colliderInfluence: 0
+  baseLodFactor: 1
+  castShadows: 1

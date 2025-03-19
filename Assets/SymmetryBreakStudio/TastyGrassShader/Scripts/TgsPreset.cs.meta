@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 53c6f3549c8e81942aa2bab0d74f75a7
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - noiseTexture0: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  - noiseTexture1: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  - noiseTexture2: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  - noiseTexture3: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  - baseMaterialWithAlphaClipping: {fileID: 2100000, guid: 7b7bcd8218c851546b94a420b6ade8f2,
+      type: 2}
+  - baseMaterialWithOutAlphaClipping: {fileID: 2100000, guid: 3fe75ad3b310c4941abe4bc71ebfcfc0,
+      type: 2}
+  executionOrder: 0
+  icon: {fileID: 2800000, guid: d4444677ba7fa1b459c1d1341e86d5a6, type: 3}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

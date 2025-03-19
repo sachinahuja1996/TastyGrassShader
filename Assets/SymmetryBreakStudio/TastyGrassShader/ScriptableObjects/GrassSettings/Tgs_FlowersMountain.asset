@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53c6f3549c8e81942aa2bab0d74f75a7, type: 3}
+  m_Name: Tgs_FlowersMountain
+  m_EditorClassIdentifier: 
+  density: 6.25
+  angleLimit: 85
+  growDirection: {x: 0, y: 1, z: 0}
+  growDirectionBySurfaceNormal: 0
+  minimalHeight: 0.06
+  clumpCount: 8
+  clumpPercentage: 1
+  clumpLimitNoiseVariation: 1
+  stemGenerate: 1
+  stemColor: {r: 0.11903508, g: 0.16981131, b: 0.04004981, a: 1}
+  stemThicknessRatio: 0.18
+  noiseTexture0: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  noiseLayer0:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+    tiling: 1.41
+    valueScale: 1
+    valueOffset: 0
+    height: {x: 0.01, y: 0.1}
+    offset: {x: -1, y: 0}
+    angle: {x: 0.059196226, y: 0.09465029}
+    thickness: {x: 0.4905032, y: 0.5}
+    skew: {x: 0.91890067, y: 1}
+    colorInfluence: {x: 1, y: 1}
+    color: {r: 0.8, g: 0, b: 0.14246598, a: 1}
+  noiseTexture1: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer1:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 10
+    valueScale: 1
+    valueOffset: 0.83
+    height: {x: -1.0970321, y: 0.11}
+    offset: {x: -2, y: 1.5}
+    angle: {x: -0.049868524, y: -0.005550705}
+    thickness: {x: 0, y: 0.015827797}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -0.4245013, y: -0.4245013}
+    color: {r: 0, g: 0, b: 0, a: 1}
+  noiseTexture2: {fileID: 11700000, guid: 1cd37825aae0a1840a5b7e7d72fbc2cb, type: 3}
+  noiseLayer2:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: 1cd37825aae0a1840a5b7e7d72fbc2cb, type: 3}
+    tiling: 1.78
+    valueScale: 51.6
+    valueOffset: -2.3
+    height: {x: 0, y: 0}
+    offset: {x: 0, y: 0}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -1, y: 1}
+    color: {r: 0.8962264, g: 0.9254902, b: 0.8962264, a: 1}
+  noiseTexture3: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer3:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 3.2
+    valueScale: 43.64
+    valueOffset: -7.8
+    height: {x: 0.012662195, y: 0.012662195}
+    offset: {x: 0, y: 0}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: -1, y: 1}
+    color: {r: 0.7137255, g: 0.45882353, b: 0.80784315, a: 1}
+  twirl: 0.09
+  flatten: -0.21
+  scruffiness: 0
+  limpness: 0
+  texture: {fileID: 2800000, guid: b4c3ab7b345a4a64bad643bc8e7c81c2, type: 3}
+  textureUvLayout: 0
+  proceduralShapeBlend: 0
+  upperArc: 0
+  lowerArc: 4
+  tipRounding: 0.0725
+  windIntensityScale: 2
+  windPivotOffset: -1
+  smoothness: 0.017
+  occlusionByHeight: 0
+  colliderInfluence: 0.618
+  baseLodFactor: 1
+  castShadows: 1

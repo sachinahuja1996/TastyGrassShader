@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 53c6f3549c8e81942aa2bab0d74f75a7, type: 3}
+  m_Name: Tgs_GrassMeadow
+  m_EditorClassIdentifier: 
+  density: 23.8375
+  angleLimit: 86.3
+  growDirection: {x: 0, y: 1, z: 0}
+  growDirectionBySurfaceNormal: 0.152
+  minimalHeight: 0.05
+  clumpCount: 1
+  clumpPercentage: 0.9
+  clumpLimitNoiseVariation: 0
+  stemGenerate: 0
+  stemColor: {r: 0, g: 0, b: 0, a: 0}
+  stemThicknessRatio: 0.01
+  noiseTexture0: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  noiseLayer0:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+    tiling: 33.8
+    valueScale: 3.27
+    valueOffset: -0.03
+    height: {x: 0.14491522, y: 1.2518145}
+    offset: {x: -0.34545976, y: -0.1476506}
+    angle: {x: 0.26042446, y: 0.44654337}
+    thickness: {x: -0.5, y: -0.39376274}
+    skew: {x: 0.030843161, y: 0.2483106}
+    colorInfluence: {x: 1, y: 1}
+    color: {r: 0.32915205, g: 0.6855345, b: 0.109944105, a: 1}
+  noiseTexture1: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer1:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 9.62
+    valueScale: 3.63
+    valueOffset: -0.27
+    height: {x: -1.4043344, y: -0.9747255}
+    offset: {x: 0, y: 0}
+    angle: {x: -0.022767534, y: -0.0017406847}
+    thickness: {x: -0.009949464, y: 0.042268883}
+    skew: {x: -0.0037322696, y: 0.014653632}
+    colorInfluence: {x: -0.530408, y: 1}
+    color: {r: 0.5017747, g: 0.8742138, b: 0.3491356, a: 1}
+  noiseTexture2: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+  noiseLayer2:
+    disable: 0
+    solo: 0
+    texture: {fileID: 11700000, guid: ec7c0e9cdd51227479152cf14a85802f, type: 3}
+    tiling: 15.16
+    valueScale: 3
+    valueOffset: -0.25
+    height: {x: -0.33612192, y: 1.5810716}
+    offset: {x: 0, y: 0}
+    angle: {x: -0.022767534, y: 0.021481046}
+    thickness: {x: 0.0007567853, y: 0.26197398}
+    skew: {x: 0.21687746, y: 0.3571791}
+    colorInfluence: {x: -1, y: 1}
+    color: {r: 0.45692742, g: 0.7106918, b: 0.31511799, a: 1}
+  noiseTexture3: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+  noiseLayer3:
+    disable: 1
+    solo: 0
+    texture: {fileID: 11700000, guid: fed58e12032381a43b69617f4a17fda3, type: 3}
+    tiling: 1
+    valueScale: 1
+    valueOffset: 0
+    height: {x: 0, y: 0}
+    offset: {x: 0, y: 0}
+    angle: {x: 0, y: 0}
+    thickness: {x: 0, y: 0}
+    skew: {x: 0, y: 0}
+    colorInfluence: {x: 0, y: 0}
+    color: {r: 1, g: 1, b: 1, a: 1}
+  twirl: 0.131
+  flatten: 0
+  scruffiness: 0
+  limpness: 0
+  texture: {fileID: 2800000, guid: 452f1f8fa2965034aa5ac0ad2db4f90e, type: 3}
+  textureUvLayout: 0
+  proceduralShapeBlend: 0
+  upperArc: 1.01
+  lowerArc: 0
+  tipRounding: 0.0392
+  windIntensityScale: 2
+  windPivotOffset: 0
+  smoothness: 0.151
+  occlusionByHeight: 0.545
+  colliderInfluence: 0.715
+  baseLodFactor: 1
+  castShadows: 1
